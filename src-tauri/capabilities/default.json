@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Muiply pencerelerinin izinleri. Dosya sistemine erisim yok: klasor/dosya secimi diyalog eklentisinden geciyor, okuma isini Rust tarafi yapiyor. Arayuz hicbir yolu kendi basina acamaz.",
+  "windows": [
+    "oynatici",
+    "kutuphane"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "core:webview:allow-internal-toggle-devtools",
+    "dialog:allow-open"
+  ]
+}

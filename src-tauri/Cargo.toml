@@ -1,0 +1,92 @@
+[package]
+name = "muiply"
+version = "0.1.0"
+description = "Yerel medya oynatici - libmpv"
+edition = "2021"
+rust-version = "1.77.2"
+license = "Apache-2.0"
+
+[lib]
+# Tauri v2 sozlesmesi: asil kod kutuphanede, main.rs yalniz onu cagiriyor.
+name = "muiply_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+# Motor VARSAYILAN olarak acik: Muiply bir oynatici, libmpv'siz surumu
+# paketlenmez. Kapatilabilir olmasinin tek sebebi gelistirme --
+# `npm run tauri:kabuk` libmpv kurmadan kutuphane/liste tarafini calistiriyor.
+# Ayrinti: docs/Mpv_Integration.md "Motor bir Cargo ozelligi".
+default = ["mpv"]
+mpv = ["dep:libmpv2"]
+
+[dependencies]
+# `protocol-asset`: kucuk resimler `asset:` semasiyla okunuyor
+# (tauri.conf.json > security > assetProtocol). Ozellik yoksa derleme
+# yapilandirmayla uyusmadigi icin duruyor.
+# `tray-icon`: sistem tepsisi (src/tepsi.rs). Linux'ta calisma zamaninda
+# ayrica libayatana-appindicator gerekiyor -- bkz. docs/Setup.md.
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-dialog = "2"
+# Medya tuslari (Play/Pause, Next, Prev, Stop). Kisayol GLOBAL: pencere
+# odakta olmasa da yakalaniyor, zaten medya tusunun anlami bu. Bu yuzden
+# kayit bir AYARA bagli (`Settings::media_keys`) -- baska bir oynatici da
+# ayni tuslari istiyor olabilir.
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Kutuphane veritabani. `bundled`: SQLite kaynagi crate icinde derleniyor,
+# kullanicinin makinesinde sqlite3 aranmiyor.
+rusqlite = { version = "0.37", features = ["bundled"] }
+walkdir = "2"
+sha2 = "0.10"
+hex = "0.4"
+
+# Motor. Bagla-zamaninda `mpv` kutuphanesine baglaniyor (libmpv2-sys build.rs
+# `cargo:rustc-link-lib=mpv` basiyor), yani DLL/so yoksa uygulama HIC acilmaz --
+# calisma zamaninda yakalanabilen bir hata degil. Bkz. docs/Setup.md.
+libmpv2 = { version = "6", optional = true, default-features = false }
+
+# mpv'nin cizecegi alt pencere -- her platformda ayri bir nesne, ayni is.
+# Ayrinti: src/mpv/yuzey.rs.
+
+# Windows: WS_CHILD bir HWND.
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+# Linux/BSD: GdkWindow + X11 pencere kimligi (XID). Surumler tao/wry'nin
+# kullandiklariyla AYNI olmak zorunda -- ayrisirlarsa `gtk_window()`in
+# dondurdugu tip bizim `gtk::ApplicationWindow`imiz olmaz ve derleme kirilir.
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+gtk = "0.18"
+gdkx11 = "0.18"
+
+# macOS: NSView. `NSView` ozelligi objc2-foundation'in NSGeometry'sini de
+# aciyor, NSRect oradan geliyor.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSResponder", "NSView"] }
+objc2-foundation = { version = "0.3", features = [
+  "NSGeometry",
+  "objc2-core-foundation",
+] }
+
+# Tekil ornek. Varsayilan oynatici olmanin sarti: cift tiklanan her dosya
+# icin isletim sistemi Muiply'i YENIDEN calistiriyor. Eklenti ikinci sureci
+# sonlandirip argumanlarini calisan ornege veriyor (src/acilis.rs).
+# Masaustune ozel: mobilde ikinci surec diye bir sey yok.
+[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

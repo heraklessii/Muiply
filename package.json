@@ -1,0 +1,34 @@
+{
+  "name": "muiply",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Yerel medya oynatici - Tauri v2 + Rust + libmpv",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "vitest run",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:kabuk": "tauri dev -- --no-default-features",
+    "tauri:paket": "tauri build --config src-tauri/tauri.paketleme.conf.json",
+    "tauri:paket:unix": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^26.4.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  }
+}

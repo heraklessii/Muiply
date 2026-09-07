@@ -1,0 +1,139 @@
+name: Release
+
+# `v` ile başlayan bir etiket itilince kurulum paketlerini derleyip GitHub
+# Release'ine yükler. Etiketi elle atmak bilinçli: her commit'te sürüm
+# yayınlamak, henüz sahada denenmemiş bir uygulama için yanlış sinyal olurdu.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Windows kurulum paketleri
+    # Yalnız Windows. Linux ve macOS yapılandırmaları duruyor
+    # (`tauri.linux.conf.json`, `tauri.macos.conf.json`) ama o platformlarda
+    # hiç derlenmedi; denenmemiş bir paketi yayınlamak, çalıştığını söylemek
+    # olurdu (CHANGELOG.md — "Bu sürümde YAPILMADI").
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # `dumpbin` ve `lib` için MSVC ortamı. İkisi de aşağıdaki adımda
+      # kullanılıyor ve PATH'te kendiliğinden yoklar.
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # ---------------------------------------------------------------
+      # libmpv. Depoda YOK (`.gitignore` — lisansı LGPL, DLL 120 MB), o
+      # yüzden her sürümde yeniden ediniliyor. Adımlar docs/Setup.md
+      # "Windows'ta libmpv" bölümünün birebir karşılığı; orası değişirse
+      # burası da değişir.
+      #
+      # Sürüm SABİTLENMİYOR (`latest`): mpv'nin istemci API'si geriye
+      # dönük uyumlu ve sabitlenmiş bir sürüm, arşiv silindiğinde
+      # sürümlemeyi tamamen durdururdu.
+      # ---------------------------------------------------------------
+      - name: libmpv edin ve mpv.lib üret
+        shell: pwsh
+        working-directory: src-tauri/libs
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          # `mpv-dev` paketi gerekiyor: normal paket `mpv.exe` veriyor ama
+          # bağlayıcının istediği dosyaları vermiyor.
+          $sürüm = gh api repos/shinchiro/mpv-winbuild-cmake/releases/latest | ConvertFrom-Json
+          $varlık = $sürüm.assets | Where-Object { $_.name -like "mpv-dev-x86_64-*.7z" -and $_.name -notlike "*-v3-*" } | Select-Object -First 1
+          if (-not $varlık) { throw "mpv-dev-x86_64 arşivi bulunamadı" }
+          Write-Host "libmpv: $($varlık.name)"
+
+          curl.exe -sSL -o mpv-dev.7z $varlık.browser_download_url
+          7z x mpv-dev.7z -y | Out-Null
+
+          if (-not (Test-Path libmpv-2.dll)) { throw "arşivden libmpv-2.dll çıkmadı" }
+
+          # Arşivde `.lib` de `.def` de yok; ikisini de DLL'in kendi dışa
+          # aktarma tablosundan üretiyoruz (docs/Setup.md, adım 3).
+          $çıktı = dumpbin /exports libmpv-2.dll
+          $adlar = $çıktı |
+            Select-String -Pattern '^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)$' |
+            ForEach-Object { $_.Matches[0].Groups[1].Value }
+
+          if ($adlar.Count -lt 10) { throw "dumpbin çıktısından sembol okunamadı ($($adlar.Count) bulundu)" }
+          Write-Host "$($adlar.Count) sembol"
+
+          @("EXPORTS") + $adlar | Set-Content -Encoding ascii mpv.def
+
+          # `/name:` DLL'in GERÇEK adı olmalı; yanlış yazılırsa üretilen
+          # `.lib` olmayan bir dosyayı arar ve uygulama açılışta
+          # "DLL bulunamadı" ile kapanır.
+          lib /def:mpv.def /name:libmpv-2.dll /out:mpv.lib /machine:x64
+          if (-not (Test-Path mpv.lib)) { throw "mpv.lib üretilemedi" }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Bağlayıcıya `libs/` klasörünü gösteren yol. Depoda yok çünkü makineye
+      # özel (`.gitignore`), CI'da da burada üretiliyor.
+      - name: Bağlayıcı yolunu yaz
+        shell: pwsh
+        working-directory: src-tauri
+        run: |
+          New-Item -ItemType Directory -Force .cargo | Out-Null
+          @'
+          [target.x86_64-pc-windows-msvc]
+          rustflags = ["-Lnative=libs"]
+          '@ | Set-Content -Encoding ascii .cargo/config.toml
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Paketleme yapılandırması AYRI: `libs/*.dll`i kurulum paketine
+          # kopyalayan tek yer burası. Onsuz kurulan uygulama açılmıyor
+          # (docs/Setup.md → "Paketleme").
+          args: --config src-tauri/tauri.paketleme.conf.json
+          tagName: ${{ github.ref_name }}
+          releaseName: Muiply ${{ github.ref_name }}
+          releaseBody: |
+            **Windows 10 / 11 (x64)**
+            - `.exe` — NSIS kurulumu (önerilen, daha küçük)
+            - `.msi` — kurumsal dağıtım için
+
+            Kod çözmeyi libmpv yapıyor; MKV, HEVC, AV1, FLAC ve diğerleri ek
+            codec paketi istemeden açılıyor. libmpv kurulum paketinin içinde,
+            ayrıca bir şey kurmak gerekmiyor.
+
+            **Bu bir ön sürüm.** Yedi fazın tamamı yazıldı ve 95 otomatik
+            testle doğrulanıyor; ancak uygulama sahada geniş çapta
+            denenmedi. Neyin denenmediği açıkça yazılı:
+            [`CHANGELOG.md`](https://github.com/heraklessii/Muiply/blob/main/CHANGELOG.md#bu-sürümde-yapilmadi)
+
+            Ne yapmadığı (bilerek): ağ akışı ve YouTube yok, internetten meta
+            veri çekmiyor, video filtresi yok, kütüphaneden kaldırmak dosyayı
+            silmiyor. Gerekçeler
+            [`docs/Roadmap.md`](https://github.com/heraklessii/Muiply/blob/main/docs/Roadmap.md).
+
+            Kurulum paketleri imzasız: Windows SmartScreen uyarı gösterecek.
+            Kod imzalama sertifikası henüz yok.
+          releaseDraft: false
+          # Ön sürüm: uygulama sahada geniş çapta denenmedi, "Latest" rozetini
+          # taşımamalı.
+          prerelease: true

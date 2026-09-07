@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Muiply — yerel medya oynatıcı</title>
+    <meta
+      name="description"
+      content="Bilgisayarındaki videoları ve müziği çalan masaüstü oynatıcı. Kod çözmeyi libmpv yapıyor: MKV, HEVC, AV1, FLAC ek codec paketi istemeden açılıyor."
+    />
+    <link rel="icon" href="ikon.svg" type="image/svg+xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Muiply — yerel medya oynatıcı" />
+    <meta
+      property="og:description"
+      content="Çift tıkla, açılsın. Codec paketi kurmadan MKV, HEVC, AV1, FLAC. Kütüphane, çalma listeleri, altyazı."
+    />
+    <meta property="og:url" content="https://heraklessii.github.io/Muiply/" />
+
+    <style>
+      /* ---------------------------------------------------------------
+       * Font — Outfit, GÖMÜLÜ. CDN yok: Google Fonts'a giden bir istek
+       * ziyaretçiyi üçüncü tarafa bildirmek olurdu. `latin-ext` alt kümesi
+       * Türkçe için şart (ğ ş İ ı Ş Ğ).
+       * ------------------------------------------------------------- */
+      @font-face {
+        font-family: 'Outfit';
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: swap;
+        src: url('outfit-latin.woff2') format('woff2');
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+          U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
+          U+FEFF, U+FFFD;
+      }
+      @font-face {
+        font-family: 'Outfit';
+        font-style: normal;
+        font-weight: 100 900;
+        font-display: swap;
+        src: url('outfit-latin-ext.woff2') format('woff2');
+        unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+          U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+          U+2113, U+2C60-2C7F, U+A720-A7FF;
+      }
+
+      /* Jetonlar Mui ailesinden birebir (kanonik kaynak Muiget/src/styles.css). */
+      :root {
+        --bg: #0f1115;
+        --bg-panel: #181b22;
+        --bg-elevated: #20242d;
+        --border: #262b35;
+        --border-strong: #333a47;
+        --text: #e8eaed;
+        --text-muted: #8b93a3;
+        --accent: #2dd4bf;
+        --accent-strong: #5eead4;
+        --olcu: 1100px;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font-size: 17px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        color: var(--accent-strong);
+        text-decoration: underline;
+      }
+
+      /* Klavyeyle gezenler için görünür odak: teal zaten vurgu rengi. */
+      a:focus-visible,
+      .dugme:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 4px;
+      }
+
+      .kap {
+        width: 100%;
+        max-width: var(--olcu);
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      /* --- tepe --- */
+      header {
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        background: rgba(15, 17, 21, 0.88);
+        backdrop-filter: blur(10px);
+        z-index: 10;
+      }
+      .tepe {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 0;
+      }
+      .marka {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        font-size: 18px;
+        color: var(--text);
+      }
+      .marka:hover {
+        text-decoration: none;
+      }
+      .marka img {
+        width: 28px;
+        height: 28px;
+        display: block;
+      }
+      header nav {
+        display: flex;
+        gap: 22px;
+        font-size: 15px;
+      }
+      header nav a {
+        color: var(--text-muted);
+      }
+      header nav a:hover {
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      /* --- hero --- */
+      .hero {
+        padding: 88px 0 72px;
+        border-bottom: 1px solid var(--border);
+      }
+      .hero h1 {
+        font-size: clamp(34px, 6vw, 58px);
+        line-height: 1.12;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        margin: 0 0 20px;
+        max-width: 16ch;
+      }
+      .vurgu {
+        color: var(--accent);
+      }
+      .hero p {
+        font-size: clamp(17px, 2.2vw, 20px);
+        color: var(--text-muted);
+        max-width: 60ch;
+        margin: 0 0 32px;
+      }
+
+      .dugmeler {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      .dugme {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 22px;
+        border-radius: 10px;
+        border: 1px solid var(--border-strong);
+        font-weight: 500;
+        font-size: 16px;
+        color: var(--text);
+        transition:
+          background 0.15s,
+          border-color 0.15s;
+      }
+      .dugme:hover {
+        text-decoration: none;
+        background: var(--bg-elevated);
+      }
+      .dugme.birincil {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #08130f;
+        font-weight: 600;
+      }
+      .dugme.birincil:hover {
+        background: var(--accent-strong);
+        border-color: var(--accent-strong);
+        color: #08130f;
+      }
+      .kucuk-not {
+        margin: 16px 0 0;
+        font-size: 14px;
+        color: var(--text-muted);
+      }
+
+      /* --- bölümler --- */
+      .bolum {
+        padding: 72px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .bolum h2 {
+        font-size: clamp(24px, 3.4vw, 32px);
+        line-height: 1.25;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        margin: 0 0 14px;
+        max-width: 24ch;
+      }
+      .bolum > .kap > p {
+        color: var(--text-muted);
+        max-width: 68ch;
+        margin: 0 0 32px;
+      }
+
+      .izgara {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+        gap: 18px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .kart {
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 22px;
+      }
+      .kart h3 {
+        margin: 0 0 8px;
+        font-size: 17px;
+        font-weight: 600;
+      }
+      .kart p {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 15px;
+      }
+
+      /* Dürüstlük listesi: aile geleneği — ne YAPMADIĞI da yazılıyor. */
+      .durust {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 14px;
+        max-width: 76ch;
+      }
+      .durust li {
+        padding-left: 26px;
+        position: relative;
+        color: var(--text-muted);
+        font-size: 16px;
+      }
+      .durust li::before {
+        content: '—';
+        position: absolute;
+        left: 0;
+        color: var(--border-strong);
+      }
+      .durust b {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .adimlar {
+        display: grid;
+        gap: 18px;
+        max-width: 72ch;
+        margin: 0;
+        padding: 0;
+        counter-reset: adim;
+        list-style: none;
+      }
+      .adimlar li {
+        position: relative;
+        padding-left: 44px;
+        color: var(--text-muted);
+      }
+      .adimlar li::before {
+        counter-increment: adim;
+        content: counter(adim);
+        position: absolute;
+        left: 0;
+        top: 1px;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 1px solid var(--border-strong);
+        color: var(--accent);
+        font-size: 14px;
+        font-weight: 600;
+        display: grid;
+        place-items: center;
+      }
+      .adimlar b {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, 'Cascadia Mono', Menlo, monospace;
+        font-size: 0.9em;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 1px 6px;
+      }
+
+      /* --- aile --- */
+      .aile {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .aile a {
+        display: inline-block;
+        padding: 8px 16px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--text-muted);
+        font-size: 15px;
+        background: var(--bg-panel);
+      }
+      .aile a:hover {
+        color: var(--text);
+        border-color: var(--border-strong);
+        text-decoration: none;
+      }
+
+      /* --- alt --- */
+      footer {
+        padding: 40px 0 56px;
+        color: var(--text-muted);
+        font-size: 15px;
+      }
+      .alt {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: space-between;
+        align-items: center;
+      }
+      footer nav {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      @media (max-width: 620px) {
+        header nav {
+          display: none;
+        }
+        .hero {
+          padding: 56px 0 48px;
+        }
+        .bolum {
+          padding: 52px 0;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <div class="kap tepe">
+        <a class="marka" href="./">
+          <img src="ikon.svg" alt="" width="28" height="28" />
+          Muiply
+        </a>
+        <nav>
+          <a href="#ozellikler">Özellikler</a>
+          <a href="#durustluk">Ne yapmaz</a>
+          <a href="#kurulum">Kurulum</a>
+          <a href="https://github.com/heraklessii/Muiply">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="kap">
+          <h1>Çift tıkla. <span class="vurgu">Açılsın.</span></h1>
+          <p>
+            Muiply bilgisayarındaki videoları ve müziği çalan bir masaüstü oynatıcı. Kod çözmeyi
+            <b>libmpv</b> yapıyor: MKV, HEVC, AV1, FLAC ve diğerleri ek bir codec paketi kurmadan
+            açılıyor. Klasörlerini tarayan bir kütüphanesi ve çalma listeleri var.
+          </p>
+          <div class="dugmeler">
+            <a class="dugme birincil" href="https://github.com/heraklessii/Muiply/releases/latest">
+              Windows için indir
+            </a>
+            <a class="dugme" href="https://github.com/heraklessii/Muiply">Kaynak kodu</a>
+          </div>
+          <p class="kucuk-not">
+            Windows 10 / 11 (x64) · Apache-2.0 · Ön sürüm — sahada geniş çapta denenmedi
+          </p>
+        </div>
+      </section>
+
+      <section id="ozellikler" class="bolum">
+        <div class="kap">
+          <h2>Bir oynatıcının yapması gerekenler, fazlası değil.</h2>
+          <p>
+            Muiply video izlerken oynatıcı, müzik dinlerken kütüphane olmaya çalışıyor — ikisini
+            aynı pencereye sıkıştırmadan.
+          </p>
+          <ul class="izgara">
+            <li class="kart">
+              <h3>Ayrı oynatıcı penceresi</h3>
+              <p>
+                Video kendi penceresinde: yan sütun yok, ızgara yok. Kütüphane ve listeler ikinci
+                pencerede, istendiğinde.
+              </p>
+            </li>
+            <li class="kart">
+              <h3>Codec derdi yok</h3>
+              <p>
+                Kod çözmeyi libmpv yapıyor ve kurulum paketinin içinde geliyor. Ayrıca bir şey
+                kurmak gerekmiyor.
+              </p>
+            </li>
+            <li class="kart">
+              <h3>Kütüphane</h3>
+              <p>
+                Klasörlerini tarayıp SQLite'a yazıyor. İkinci tarama değişmemiş dosyayı hiç
+                açmıyor. Izgara, arama, sıralama.
+              </p>
+            </li>
+            <li class="kart">
+              <h3>Altyazı kendiliğinden</h3>
+              <p>
+                Gömülü izler ve dosyanın yanındaki <code>.srt</code> / <code>.ass</code> dosyaları.
+                Dil adları Türkçe, gecikme ayarı var.
+              </p>
+            </li>
+            <li class="kart">
+              <h3>Çalma listeleri ve kuyruk</h3>
+              <p>Kalıcı listeler, sürükleyerek sıralama, tekrar (kapalı / liste / tek) ve karışık.</p>
+            </li>
+            <li class="kart">
+              <h3>Kaldığın yerden</h3>
+              <p>
+                Yarım bıraktığın dosya kaldığı yerden açılıyor. Varsayılan kapalı: bir filmi
+                bilerek baştan açan kendini ortasında bulmasın.
+              </p>
+            </li>
+            <li class="kart">
+              <h3>Tepsi ve medya tuşları</h3>
+              <p>
+                Küçültülmüşken de oynat/duraklat, önceki, sonraki. Medya tuşları kapatılabilir —
+                kayıt global, açıkken tuş başka oynatıcıya ulaşmıyor.
+              </p>
+            </li>
+            <li class="kart">
+              <h3>Varsayılan oynatıcı olabiliyor</h3>
+              <p>
+                Kurulum 14 video ve 12 ses uzantısını işletim sistemine bildiriyor. Çift tıkladığın
+                dosya Muiply'de açılıyor.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="durustluk" class="bolum">
+        <div class="kap">
+          <h2>Muiply bir medya merkezi değil.</h2>
+          <p>
+            Aşağıdakiler eksik değil, <b>karar</b>. Hepsinin gerekçesi depoda yazılı
+            (<a href="https://github.com/heraklessii/Muiply/blob/main/docs/Roadmap.md"
+              ><code>docs/Roadmap.md</code></a
+            >) ve genişletmeden önce o dosya değişiyor.
+          </p>
+          <ul class="durust">
+            <li>
+              <b>Ağ akışı ve YouTube yok.</b> Muiply yerel dosya oynatıcısı. Uzaktan birlikte izleme
+              Muiwatch'ın, indirme Muiget'in işi.
+            </li>
+            <li>
+              <b>İnternetten meta veri çekmiyor.</b> Poster, afiş, oyuncu kadrosu için üçüncü taraf
+              bir servise çıkılmıyor; ne varsa dosyanın içinde var.
+            </li>
+            <li>
+              <b>Video filtresi ve renk düzeltme yok.</b> mpv'nin kendi <code>input.conf</code>'u
+              bunu zaten yapıyor; ikinci bir arayüz üretmek onu bölmek olurdu.
+            </li>
+            <li>
+              <b>Kütüphaneden kaldırmak dosyayı silmiyor.</b> Kaydı siliyor. Muiply bir dosya
+              yöneticisi değil.
+            </li>
+            <li>
+              <b>Pencereyi kapatmak tepsiye indirmiyor.</b> Görünen son pencerenin X'i uygulamayı
+              gerçekten kapatıyor. "Kapattım ama kapanmadı" hatanın kendisi gibi görünüyor.
+            </li>
+            <li>
+              <b>Saf Wayland'da video ayrı pencerede açılıyor.</b> mpv'nin <code>wid</code>
+              seçeneğinin sınırı, bizim eksiğimiz değil. XWayland altında gömülü çalışıyor.
+            </li>
+            <li>
+              <b>Kurulum paketleri imzasız.</b> Windows SmartScreen uyarı gösterecek; kod imzalama
+              sertifikası henüz yok.
+            </li>
+            <li>
+              <b>Bu bir ön sürüm.</b> Yedi fazın tamamı yazıldı ve 95 otomatik testle doğrulanıyor,
+              ama uygulama sahada geniş çapta denenmedi. Neyin denenmediği açıkça yazılı:
+              <a href="https://github.com/heraklessii/Muiply/blob/main/CHANGELOG.md"
+                ><code>CHANGELOG.md</code></a
+              >.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="kurulum" class="bolum">
+        <div class="kap">
+          <h2>Windows 10 / 11, x64.</h2>
+          <p>
+            İki paket var: <code>.exe</code> NSIS kurulumu (önerilen, daha küçük),
+            <code>.msi</code> kurumsal dağıtım için. libmpv ikisinin de içinde.
+          </p>
+          <ol class="adimlar">
+            <li>
+              <b>İndir.</b> Sürümler sayfasından <code>Muiply_x.y.z_x64-setup.exe</code> dosyasını
+              al.
+            </li>
+            <li>
+              <b>Kur.</b> SmartScreen uyarısında "Ek bilgi" → "Yine de çalıştır". Paket imzasız
+              olduğu için bu uyarı çıkıyor.
+            </li>
+            <li>
+              <b>Aç.</b> Bir video ya da müzik dosyasına çift tıkla, veya Muiply'yi açıp kütüphanene
+              bir klasör ekle.
+            </li>
+          </ol>
+          <div class="dugmeler" style="margin-top: 32px">
+            <a class="dugme birincil" href="https://github.com/heraklessii/Muiply/releases/latest">
+              Sürümler sayfası
+            </a>
+            <a class="dugme" href="https://github.com/heraklessii/Muiply/blob/main/docs/Setup.md">
+              Kaynaktan derleme
+            </a>
+          </div>
+          <p class="kucuk-not">
+            Linux ve macOS yapılandırmaları depoda duruyor ama o platformlarda henüz derlenmedi;
+            hazır paket yalnız Windows için var.
+          </p>
+        </div>
+      </section>
+
+      <section class="bolum">
+        <div class="kap">
+          <h2>Mui ailesinin bir parçası.</h2>
+          <p>
+            Hepsi aynı tasarım dilini konuşuyor, hepsi tek başına çalışıyor. Tümü tek yerde:
+            <a href="https://heraklessii.github.io/MuiLabs/">MuiLabs</a>.
+          </p>
+          <ul class="aile">
+            <li><a href="https://heraklessii.github.io/Muiget/">Muiget — indirme yöneticisi</a></li>
+            <li><a href="https://heraklessii.github.io/Muivly/">Muivly — canlı duvar kâğıdı</a></li>
+            <li><a href="https://heraklessii.github.io/Muiren/">Muiren — tarayıcı</a></li>
+            <li><a href="https://heraklessii.github.io/Muiwatch/">Muiwatch — birlikte izleme</a></li>
+            <li><a href="https://heraklessii.github.io/Muifly/">Muifly — oyun performansı</a></li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="kap alt">
+        <span>Apache-2.0 · libmpv LGPL-2.1+ ile dinamik bağlanıyor</span>
+        <nav>
+          <a href="https://github.com/heraklessii/Muiply">Depo</a>
+          <a href="https://github.com/heraklessii/Muiply/releases">Sürümler</a>
+          <a href="https://github.com/heraklessii/Muiply/blob/main/CHANGELOG.md">Değişiklikler</a>
+          <a href="https://github.com/heraklessii/Muiply/issues">Hata bildir</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>
