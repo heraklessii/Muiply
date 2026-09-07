@@ -5,6 +5,17 @@ Bilgisayarındaki videoları ve müziği çalan masaüstü oynatıcı. Kod çöz
 istemeden açılıyor. Klasörlerini tarayan bir kütüphanesi ve çalma listeleri
 var.
 
+[![CI](https://github.com/heraklessii/Muiply/actions/workflows/ci.yml/badge.svg)](https://github.com/heraklessii/Muiply/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/durum-%C3%B6n%20s%C3%BCr%C3%BCm-orange.svg)](docs/Roadmap.md)
+
+> ⚠️ **Bu bir ön sürüm.** Yedi fazın tamamı yazıldı ve 95 otomatik testle
+> doğrulanıyor, ama uygulama sahada geniş çapta denenmedi. Neyin
+> denenmediği açıkça yazılı: [`CHANGELOG.md`](CHANGELOG.md).
+
+**İndir:** [Sürümler](https://github.com/heraklessii/Muiply/releases/latest) ·
+**Tanıtım:** <https://heraklessii.github.io/Muiply/>
+
 Mui portföyünün bir parçası — Muiget, Muivly, Muifly, Muiwatch, MuiLabs ile
 aynı tasarım dilini konuşuyor.
 
@@ -41,7 +52,7 @@ npm run tauri:kabuk     # libmpv olmadan: kütüphane + listeler + arayüz
 ```
 
 Gerçek oynatıcı için libmpv gerekiyor. Windows'ta `mpv-dev` paketinden
-`mpv-2.dll` + `mpv.lib` üretmek gerekiyor; Linux'ta `libmpv-dev`, macOS'ta
+`libmpv-2.dll` yanına `mpv.lib` üretmek gerekiyor; Linux'ta `libmpv-dev`, macOS'ta
 `brew install mpv`. Adım adım `docs/Setup.md`.
 
 ```bash
